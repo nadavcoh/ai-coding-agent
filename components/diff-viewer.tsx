@@ -247,10 +247,10 @@ export function DiffViewer({
           )}
         </div>
       ) : (
-        <div className="px-4 py-3 border-t border-border flex items-center justify-between gap-3 flex-wrap">
+        <div className="px-4 py-3 border-t border-border flex flex-wrap items-center justify-between gap-3">
           {status === "error" && (
-            <div className="flex items-center gap-2 text-xs text-destructive">
-              <AlertTriangle className="h-3.5 w-3.5" />
+            <div className="flex items-center gap-2 text-xs text-destructive w-full sm:w-auto">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
               <span>{errorMessage}</span>
             </div>
           )}
@@ -274,12 +274,13 @@ export function DiffViewer({
               {status === "loading" ? (
                 <>
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Committing…
+                  <span className="hidden sm:inline">Committing…</span>
                 </>
               ) : (
                 <>
                   <GitCommit className="h-3.5 w-3.5" />
-                  Approve & Commit to GitHub
+                  <span className="hidden sm:inline">Approve & Commit to GitHub</span>
+                  <span className="sm:hidden">Approve</span>
                 </>
               )}
             </Button>

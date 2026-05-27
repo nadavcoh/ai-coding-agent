@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   Sparkles,
   Github,
+  PanelLeftOpen,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
@@ -35,9 +36,11 @@ interface PendingPush {
 interface ChatInterfaceProps {
   initialPrompt?: string;
   repoContext?: { owner: string; repo: string };
+  sidebarOpen?: boolean;
+  onToggleSidebar?: () => void;
 }
 
-export function ChatInterface({ initialPrompt, repoContext }: ChatInterfaceProps) {
+export function ChatInterface({ initialPrompt, repoContext, sidebarOpen, onToggleSidebar }: ChatInterfaceProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [pendingPushes, setPendingPushes] = useState<Map<string, PendingPush>>(new Map());
@@ -197,23 +200,33 @@ export function ChatInterface({ initialPrompt, repoContext }: ChatInterfaceProps
   return (
     <div className="flex flex-col h-screen bg-background">
       {/* Top bar */}
-      <div className="h-12 border-b border-border px-6 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      <div className="h-12 border-b border-border px-3 sm:px-5 flex items-center justify-between shrink-0 gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          {/* Hamburger / open-sidebar button */}
+          {!sidebarOpen && (
+            <button
+              onClick={onToggleSidebar}
+              className="h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors shrink-0"
+              aria-label="Open sidebar"
+            >
+              <PanelLeftOpen className="h-4 w-4" />
+            </button>
+          )}
           {repoContext && (
-            <>
-              <Github className="h-3.5 w-3.5" />
-              <span className="font-mono text-xs">
+            <div className="flex items-center gap-1.5 text-muted-foreground min-w-0">
+              <Github className="h-3.5 w-3.5 shrink-0" />
+              <span className="font-mono text-xs truncate">
                 {repoContext.owner}/{repoContext.repo}
               </span>
-            </>
+            </div>
           )}
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 shrink-0">
           <div className={cn(
             "h-1.5 w-1.5 rounded-full",
             isLoading ? "bg-primary animate-pulse" : "bg-emerald-500"
           )} />
-          <span className="text-xs text-muted-foreground">
+          <span className="text-xs text-muted-foreground hidden sm:inline">
             {isLoading ? "Thinking…" : "Ready"}
           </span>
         </div>
@@ -227,7 +240,7 @@ export function ChatInterface({ initialPrompt, repoContext }: ChatInterfaceProps
         {isEmpty ? (
           <EmptyState repoContext={repoContext} onPrompt={setInput} />
         ) : (
-          <div className="max-w-3xl mx-auto px-4 py-6 space-y-1">
+          <div className="max-w-3xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-1">
             {messages.map((message) => (
               <MessageRow
                 key={message.id}
@@ -265,9 +278,9 @@ export function ChatInterface({ initialPrompt, repoContext }: ChatInterfaceProps
       </div>
 
       {/* Input */}
-      <div className="shrink-0 border-t border-border bg-card/50 backdrop-blur px-4 py-4">
+      <div className="shrink-0 border-t border-border bg-card/50 backdrop-blur px-3 sm:px-4 py-3 sm:py-4">
         <div className="max-w-3xl mx-auto">
-          <div className="flex items-end gap-3 bg-secondary/50 border border-border rounded-xl px-4 py-3 focus-within:border-primary/50 focus-within:shadow-sm transition-all">
+          <div className="flex items-end gap-2 sm:gap-3 bg-secondary/50 border border-border rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 focus-within:border-primary/50 focus-within:shadow-sm transition-all">
             <textarea
               ref={inputRef}
               value={input}
@@ -276,7 +289,7 @@ export function ChatInterface({ initialPrompt, repoContext }: ChatInterfaceProps
               placeholder={
                 repoContext
                   ? `Ask about ${repoContext.owner}/${repoContext.repo}…`
-                  : "Ask me to explore a repository, review code, or propose changes…"
+                  : "Ask me to explore a repo, review code, or propose changes…"
               }
               rows={1}
               className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none leading-relaxed max-h-32 overflow-y-auto"
@@ -305,7 +318,7 @@ export function ChatInterface({ initialPrompt, repoContext }: ChatInterfaceProps
               )}
             </div>
           </div>
-          <p className="text-[10px] text-muted-foreground/40 text-center mt-2">
+          <p className="text-[10px] text-muted-foreground/30 text-center mt-2 hidden sm:block">
             Enter to send · Shift+Enter for newline · All GitHub pushes require your approval
           </p>
         </div>
@@ -438,12 +451,12 @@ function EmptyState({
       ];
 
   return (
-    <div className="flex flex-col items-center justify-center h-full px-6 py-12 text-center">
-      <div className="mb-8">
-        <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 border border-primary/20 flex items-center justify-center mx-auto mb-5 shadow-lg glow-primary">
-          <Sparkles className="h-7 w-7 text-primary" />
+    <div className="flex flex-col items-center justify-center h-full px-4 sm:px-6 py-8 sm:py-12 text-center">
+      <div className="mb-6 sm:mb-8">
+        <div className="h-14 w-14 sm:h-16 sm:w-16 rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 border border-primary/20 flex items-center justify-center mx-auto mb-4 sm:mb-5 shadow-lg glow-primary">
+          <Sparkles className="h-6 w-6 sm:h-7 sm:w-7 text-primary" />
         </div>
-        <h2 className="font-display text-2xl font-bold text-foreground mb-2">
+        <h2 className="font-display text-xl sm:text-2xl font-bold text-foreground mb-2">
           AI Coding Agent
         </h2>
         <p className="text-sm text-muted-foreground max-w-sm">
@@ -461,7 +474,7 @@ function EmptyState({
           <button
             key={i}
             onClick={() => onPrompt(s)}
-            className="text-left px-4 py-3 rounded-lg border border-border bg-card hover:bg-secondary hover:border-primary/30 transition-all text-sm text-muted-foreground hover:text-foreground group"
+            className="text-left px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg border border-border bg-card hover:bg-secondary hover:border-primary/30 transition-all text-sm text-muted-foreground hover:text-foreground group"
             style={{ animationDelay: `${i * 75}ms` }}
           >
             <span className="text-primary/60 group-hover:text-primary mr-1.5 transition-colors">›</span>

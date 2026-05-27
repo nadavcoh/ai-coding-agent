@@ -190,7 +190,9 @@ export async function pushFileToGitHub(
 }
 
 /**
- * List repositories accessible with the current token
+ * List repositories the token can actually read AND push to.
+ * Filters to repos where permissions.push is true, so only actionable
+ * repos appear in the sidebar.
  */
 export async function listAccessibleRepos(): Promise<
   { owner: string; repo: string; full_name: string; private: boolean }[]
@@ -199,13 +201,16 @@ export async function listAccessibleRepos(): Promise<
 
   const { data } = await octokit.repos.listForAuthenticatedUser({
     sort: "updated",
-    per_page: 30,
+    per_page: 100,
+    affiliation: "owner,collaborator,organization_member",
   });
 
-  return data.map((r) => ({
-    owner: r.owner.login,
-    repo: r.name,
-    full_name: r.full_name,
-    private: r.private,
-  }));
+  return data
+    .filter((r) => r.permissions?.push === true)
+    .map((r) => ({
+      owner: r.owner.login,
+      repo: r.name,
+      full_name: r.full_name,
+      private: r.private,
+    }));
 }

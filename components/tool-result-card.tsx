@@ -58,7 +58,7 @@ export function ToolResultCard({ toolName, args, result, state }: ToolResultCard
         )}
       </button>
 
-      {expanded && result && (
+      {expanded && result != null && (
         <div className="px-3 pb-2 border-t border-border/50 mt-1 pt-2">
           <ToolResultContent toolName={toolName} result={result} />
         </div>

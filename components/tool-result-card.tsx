@@ -51,7 +51,7 @@ export function ToolResultCard({ toolName, args, result, state }: ToolResultCard
           {state === "complete" && <CheckCircle className="h-3 w-3 text-emerald-400" />}
           {state === "error" && <XCircle className="h-3 w-3 text-destructive" />}
         </span>
-        {result && (
+        {result != null && (
           expanded
             ? <ChevronDown className="h-3 w-3 text-muted-foreground" />
             : <ChevronRight className="h-3 w-3 text-muted-foreground" />

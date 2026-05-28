@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return new Response(
-        JSON.stringify({ error: "GEMINI_API_KEY is not configured" }),
+        JSON.stringify({ error: "GEMINI_API_KEY is not configured. Add it to your environment variables." }),
         { status: 500, headers: { "Content-Type": "application/json" } }
       );
     }
@@ -58,7 +58,6 @@ export async function POST(request: Request) {
           execute: async ({ owner, repo, branch }) => {
             try {
               const result = await getRepositoryStructure(owner, repo, branch);
-              // Format as a readable tree
               const tree = result.files
                 .map((f) => `${f.type === "dir" ? "📁" : "📄"} ${f.path}`)
                 .join("\n");
@@ -119,24 +118,35 @@ export async function POST(request: Request) {
       },
     });
 
-    return result.toDataStreamResponse();
+    return result.toDataStreamResponse({
+      getErrorMessage(error) {
+        if (error instanceof Error) {
+          if (error.message.includes("429") || error.message.toLowerCase().includes("quota") || error.message.toLowerCase().includes("rate limit")) {
+            return "Rate limit reached. Please wait a moment and try again.";
+          }
+          if (error.message.includes("API_KEY") || error.message.includes("API key")) {
+            return "Invalid Gemini API key. Check your GEMINI_API_KEY environment variable.";
+          }
+          return error.message;
+        }
+        return "An unexpected error occurred. Please try again.";
+      },
+    });
   } catch (error) {
     console.error("Chat API error:", error);
 
-    // Handle rate limit errors specifically
     const errorMessage =
       error instanceof Error ? error.message : "Internal server error";
     const isRateLimit =
       errorMessage.toLowerCase().includes("rate limit") ||
       errorMessage.toLowerCase().includes("quota") ||
-      errorMessage.toLowerCase().includes("429");
+      errorMessage.includes("429");
 
     return new Response(
       JSON.stringify({
         error: isRateLimit
           ? "Rate limit reached. Please wait a moment before sending another message."
           : errorMessage,
-        code: isRateLimit ? "RATE_LIMIT" : "INTERNAL_ERROR",
       }),
       {
         status: isRateLimit ? 429 : 500,

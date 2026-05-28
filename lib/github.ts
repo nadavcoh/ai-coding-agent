@@ -190,23 +190,46 @@ export async function pushFileToGitHub(
 }
 
 /**
- * List repositories the token can actually read AND push to.
- * Filters to repos where permissions.push is true, so only actionable
- * repos appear in the sidebar.
+ * List repositories the token can push to.
+ *
+ * Strategy:
+ * 1. Paginate through all repos the token can see (fine-grained PATs only
+ *    see repos they're granted access to, so the list itself is already filtered).
+ * 2. Keep only repos where permissions.push || permissions.maintain || permissions.admin
+ *    is true. When the permissions object is missing entirely (some API responses)
+ *    we fall back to excluding the repo rather than including it.
  */
 export async function listAccessibleRepos(): Promise<
   { owner: string; repo: string; full_name: string; private: boolean }[]
 > {
   const octokit = getOctokit();
 
-  const { data } = await octokit.repos.listForAuthenticatedUser({
-    sort: "updated",
-    per_page: 100,
-    affiliation: "owner,collaborator,organization_member",
-  });
+  const allRepos: Awaited<ReturnType<typeof octokit.repos.listForAuthenticatedUser>>["data"] = [];
 
-  return data
-    .filter((r) => r.permissions?.push === true)
+  // Paginate — GitHub returns max 100 per page
+  for await (const response of octokit.paginate.iterator(
+    octokit.repos.listForAuthenticatedUser,
+    {
+      sort: "updated",
+      per_page: 100,
+      affiliation: "owner,collaborator,organization_member",
+    }
+  )) {
+    allRepos.push(...response.data);
+    // Stop after 300 repos to avoid excessive API calls
+    if (allRepos.length >= 300) break;
+  }
+
+  return allRepos
+    .filter((r) => {
+      // Exclude archived repos — no one should be pushing to those
+      if (r.archived) return false;
+      const perms = r.permissions;
+      // If permissions object is absent, exclude the repo (safe default)
+      if (!perms) return false;
+      // Include if the token has any write-level access
+      return perms.push === true || perms.maintain === true || perms.admin === true;
+    })
     .map((r) => ({
       owner: r.owner.login,
       repo: r.name,

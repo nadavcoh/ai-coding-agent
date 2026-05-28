@@ -45,13 +45,14 @@ export function ChatInterface({ initialPrompt, repoContext, sidebarOpen, onToggl
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [pendingPushes, setPendingPushes] = useState<Map<string, PendingPush>>(new Map());
 
+  const [chatError, setChatError] = useState<string | null>(null);
+
   const {
     messages,
     input,
     handleInputChange,
     handleSubmit,
     isLoading,
-    error,
     stop,
     addToolResult,
     setInput,
@@ -60,6 +61,15 @@ export function ChatInterface({ initialPrompt, repoContext, sidebarOpen, onToggl
     maxSteps: 10,
     onError: (err) => {
       console.error("Chat error:", err);
+      // The AI SDK wraps errors — try to extract a useful message
+      const msg = err?.message || "";
+      if (msg.includes("Rate limit") || msg.includes("quota") || msg.includes("429")) {
+        setChatError("Rate limit reached. Please wait a moment and try again.");
+      } else if (msg && msg !== "An error occurred." && msg !== "An error occurred") {
+        setChatError(msg);
+      } else {
+        setChatError("Something went wrong. Check your API keys and try again.");
+      }
     },
   });
 
@@ -190,6 +200,7 @@ export function ChatInterface({ initialPrompt, repoContext, sidebarOpen, onToggl
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       if (input.trim() && !isLoading) {
+        setChatError(null);
         handleSubmit(e as unknown as React.FormEvent<HTMLFormElement>);
       }
     }
@@ -264,13 +275,14 @@ export function ChatInterface({ initialPrompt, repoContext, sidebarOpen, onToggl
               </div>
             )}
 
-            {error && (
+            {chatError && (
               <div className="flex items-start gap-2 py-2 px-3 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive animate-fade-in">
                 <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-                <div>
+                <div className="flex-1">
                   <span className="font-medium">Error: </span>
-                  {error.message || "Something went wrong. Please try again."}
+                  {chatError}
                 </div>
+                <button onClick={() => setChatError(null)} className="shrink-0 opacity-60 hover:opacity-100">✕</button>
               </div>
             )}
           </div>
@@ -280,23 +292,28 @@ export function ChatInterface({ initialPrompt, repoContext, sidebarOpen, onToggl
       {/* Input */}
       <div className="shrink-0 border-t border-border bg-card/50 backdrop-blur px-3 sm:px-4 py-3 sm:py-4">
         <div className="max-w-3xl mx-auto">
-          <div className="flex items-end gap-2 sm:gap-3 bg-secondary/50 border border-border rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 focus-within:border-primary/50 focus-within:shadow-sm transition-all">
+          <div className="flex items-end gap-2 sm:gap-3 bg-secondary/50 border border-border rounded-xl px-3 sm:px-4 py-3 focus-within:border-primary/50 focus-within:shadow-sm transition-all">
             <textarea
               ref={inputRef}
               value={input}
-              onChange={handleInputChange}
+              onChange={(e) => {
+                handleInputChange(e);
+                // Auto-grow
+                e.target.style.height = "auto";
+                e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
+              }}
               onKeyDown={handleKeyDown}
               placeholder={
                 repoContext
                   ? `Ask about ${repoContext.owner}/${repoContext.repo}…`
                   : "Ask me to explore a repo, review code, or propose changes…"
               }
-              rows={1}
-              className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none leading-relaxed max-h-32 overflow-y-auto"
-              style={{ minHeight: "24px" }}
+              rows={4}
+              className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none leading-relaxed overflow-y-auto"
+              style={{ minHeight: "96px", maxHeight: "200px" }}
               disabled={isLoading}
             />
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 pb-0.5">
               {isLoading ? (
                 <Button
                   size="icon-sm"
@@ -309,7 +326,10 @@ export function ChatInterface({ initialPrompt, repoContext, sidebarOpen, onToggl
               ) : (
                 <Button
                   size="icon-sm"
-                  onClick={(e) => handleSubmit(e as unknown as React.FormEvent<HTMLFormElement>)}
+                  onClick={(e) => {
+                    setChatError(null);
+                    handleSubmit(e as unknown as React.FormEvent<HTMLFormElement>);
+                  }}
                   disabled={!input.trim()}
                   className="shadow-sm"
                 >

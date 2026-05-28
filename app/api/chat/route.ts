@@ -37,10 +37,10 @@ export async function POST(request: Request) {
   try {
     const { messages } = await request.json();
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
     if (!apiKey) {
       return new Response(
-        JSON.stringify({ error: "GEMINI_API_KEY is not configured. Add it to your environment variables." }),
+        JSON.stringify({ error: "GOOGLE_GENERATIVE_AI_API_KEY is not configured. Add it to your environment variables." }),
         { status: 500, headers: { "Content-Type": "application/json" } }
       );
     }

@@ -61,10 +61,11 @@ export function ChatInterface({ initialPrompt, repoContext, sidebarOpen, onToggl
     maxSteps: 10,
     onError: (err) => {
       console.error("Chat error:", err);
-      // The AI SDK wraps errors — try to extract a useful message
       const msg = err?.message || "";
       if (msg.includes("Rate limit") || msg.includes("quota") || msg.includes("429")) {
         setChatError("Rate limit reached. Please wait a moment and try again.");
+      } else if (msg.includes("API_KEY_INVALID") || msg.includes("API key not valid")) {
+        setChatError("Invalid Gemini API key. Check your GEMINI_API_KEY environment variable.");
       } else if (msg && msg !== "An error occurred." && msg !== "An error occurred") {
         setChatError(msg);
       } else {

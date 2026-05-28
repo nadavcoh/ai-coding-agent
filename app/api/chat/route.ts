@@ -121,13 +121,14 @@ export async function POST(request: Request) {
     return result.toDataStreamResponse({
       getErrorMessage(error) {
         if (error instanceof Error) {
-          if (error.message.includes("429") || error.message.toLowerCase().includes("quota") || error.message.toLowerCase().includes("rate limit")) {
+          const msg = error.message;
+          if (msg.includes("429") || msg.toLowerCase().includes("quota") || msg.toLowerCase().includes("rate limit")) {
             return "Rate limit reached. Please wait a moment and try again.";
           }
-          if (error.message.includes("API_KEY") || error.message.includes("API key")) {
+          if (msg.includes("API_KEY_INVALID") || msg.includes("invalid api key") || msg.includes("API key not valid")) {
             return "Invalid Gemini API key. Check your GEMINI_API_KEY environment variable.";
           }
-          return error.message;
+          return msg;
         }
         return "An unexpected error occurred. Please try again.";
       },

@@ -108,6 +108,9 @@ export function ChatInterface({
   // Only run on mount (chatKey change remounts the component)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Auto-scroll to bottom
+  useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }

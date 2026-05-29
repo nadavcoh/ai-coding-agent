@@ -9,6 +9,7 @@ import {
   getRepositoryStructure,
   getFileContent,
 } from "@/lib/github";
+import { GEMINI_MODELS, DEFAULT_MODEL } from "@/lib/models";
 
 export const maxDuration = 60;
 
@@ -33,9 +34,12 @@ const SYSTEM_PROMPT = `You are an expert AI coding agent with deep knowledge of 
 
 Be helpful, thorough, and safety-conscious.`;
 
+const VALID_MODEL_IDS = new Set(GEMINI_MODELS.map((m) => m.id));
+
 export async function POST(request: Request) {
   try {
-    const { messages } = await request.json();
+    const body = await request.json();
+    const { messages, modelId } = body;
 
     const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
     if (!apiKey) {
@@ -45,8 +49,14 @@ export async function POST(request: Request) {
       );
     }
 
+    // Validate model id — fall back to default if invalid
+    const resolvedModelId =
+      typeof modelId === "string" && VALID_MODEL_IDS.has(modelId)
+        ? modelId
+        : DEFAULT_MODEL;
+
     const result = streamText({
-      model: google("gemini-2.5-flash"),
+      model: google(resolvedModelId),
       system: SYSTEM_PROMPT,
       messages,
       maxSteps: 10,
@@ -113,7 +123,6 @@ export async function POST(request: Request) {
           description:
             "Proposes a code change to be committed to GitHub. This DOES NOT commit immediately — it sends the proposal to the human for review and approval. Use this when you have a concrete code change to suggest.",
           parameters: proposeGithubPushSchema,
-          // No execute function = tool result must be provided by the client (human-in-the-loop)
         }),
       },
     });
@@ -123,10 +132,10 @@ export async function POST(request: Request) {
         if (error instanceof Error) {
           const msg = error.message;
           if (msg.includes("429") || msg.toLowerCase().includes("quota") || msg.toLowerCase().includes("rate limit")) {
-            return "Rate limit reached. Please wait a moment and try again.";
+            return `RATE_LIMIT:${resolvedModelId}:Rate limit reached for ${resolvedModelId}. Switch to a different model or wait a moment.`;
           }
           if (msg.includes("API_KEY_INVALID") || msg.includes("invalid api key") || msg.includes("API key not valid")) {
-            return "Invalid Gemini API key. Check your GEMINI_API_KEY environment variable.";
+            return "Invalid Gemini API key. Check your GOOGLE_GENERATIVE_AI_API_KEY environment variable.";
           }
           return msg;
         }
@@ -135,24 +144,15 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Chat API error:", error);
-
-    const errorMessage =
-      error instanceof Error ? error.message : "Internal server error";
+    const errorMessage = error instanceof Error ? error.message : "Internal server error";
     const isRateLimit =
       errorMessage.toLowerCase().includes("rate limit") ||
       errorMessage.toLowerCase().includes("quota") ||
       errorMessage.includes("429");
 
     return new Response(
-      JSON.stringify({
-        error: isRateLimit
-          ? "Rate limit reached. Please wait a moment before sending another message."
-          : errorMessage,
-      }),
-      {
-        status: isRateLimit ? 429 : 500,
-        headers: { "Content-Type": "application/json" },
-      }
+      JSON.stringify({ error: isRateLimit ? "Rate limit reached." : errorMessage }),
+      { status: isRateLimit ? 429 : 500, headers: { "Content-Type": "application/json" } }
     );
   }
 }

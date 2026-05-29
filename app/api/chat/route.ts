@@ -5,10 +5,7 @@ import {
   readFileContentsSchema,
   proposeGithubPushSchema,
 } from "@/lib/tools";
-import {
-  getRepositoryStructure,
-  getFileContent,
-} from "@/lib/github";
+import { getRepositoryStructure, getFileContent } from "@/lib/github";
 import { GEMINI_MODELS, DEFAULT_MODEL } from "@/lib/models";
 
 export const maxDuration = 60;
@@ -37,20 +34,20 @@ Be helpful, thorough, and safety-conscious.`;
 const VALID_MODEL_IDS = new Set(GEMINI_MODELS.map((m) => m.id));
 
 export async function POST(request: Request) {
+  let resolvedModelId = DEFAULT_MODEL;
+
   try {
     const body = await request.json();
     const { messages, modelId } = body;
 
-    const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-    if (!apiKey) {
+    if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
       return new Response(
-        JSON.stringify({ error: "GOOGLE_GENERATIVE_AI_API_KEY is not configured. Add it to your environment variables." }),
+        JSON.stringify({ error: "GOOGLE_GENERATIVE_AI_API_KEY is not configured." }),
         { status: 500, headers: { "Content-Type": "application/json" } }
       );
     }
 
-    // Validate model id — fall back to default if invalid
-    const resolvedModelId =
+    resolvedModelId =
       typeof modelId === "string" && VALID_MODEL_IDS.has(modelId)
         ? modelId
         : DEFAULT_MODEL;
@@ -62,8 +59,7 @@ export async function POST(request: Request) {
       maxSteps: 10,
       tools: {
         read_repository_structure: tool({
-          description:
-            "Fetches the complete recursive file tree of a GitHub repository. Use this first to understand the project structure before reading specific files.",
+          description: "Fetches the complete recursive file tree of a GitHub repository.",
           parameters: readRepositoryStructureSchema,
           execute: async ({ owner, repo, branch }) => {
             try {
@@ -71,88 +67,51 @@ export async function POST(request: Request) {
               const tree = result.files
                 .map((f) => `${f.type === "dir" ? "📁" : "📄"} ${f.path}`)
                 .join("\n");
-              return {
-                success: true,
-                owner,
-                repo,
-                branch: result.branch,
-                fileCount: result.files.length,
-                truncated: result.truncated,
-                tree,
-                files: result.files,
-              };
+              return { success: true, owner, repo, branch: result.branch, fileCount: result.files.length, truncated: result.truncated, tree, files: result.files };
             } catch (error) {
-              return {
-                success: false,
-                error:
-                  error instanceof Error
-                    ? error.message
-                    : "Failed to fetch repository structure",
-              };
+              return { success: false, error: error instanceof Error ? error.message : "Failed to fetch repository structure" };
             }
           },
         }),
-
         read_file_contents: tool({
-          description:
-            "Fetches the complete content of a specific file from a GitHub repository. Use after exploring the structure to read relevant source files.",
+          description: "Fetches the complete content of a specific file from a GitHub repository.",
           parameters: readFileContentsSchema,
           execute: async ({ owner, repo, file_path, branch }) => {
             try {
               const result = await getFileContent(owner, repo, file_path, branch);
-              return {
-                success: true,
-                path: result.path,
-                content: result.content,
-                sha: result.sha,
-                size: result.size,
-              };
+              return { success: true, path: result.path, content: result.content, sha: result.sha, size: result.size };
             } catch (error) {
-              return {
-                success: false,
-                error:
-                  error instanceof Error
-                    ? error.message
-                    : "Failed to fetch file contents",
-              };
+              return { success: false, error: error instanceof Error ? error.message : "Failed to fetch file contents" };
             }
           },
         }),
-
         propose_github_push: tool({
-          description:
-            "Proposes a code change to be committed to GitHub. This DOES NOT commit immediately — it sends the proposal to the human for review and approval. Use this when you have a concrete code change to suggest.",
+          description: "Proposes a code change to be committed to GitHub. Does NOT commit immediately — requires human approval.",
           parameters: proposeGithubPushSchema,
         }),
       },
     });
 
-    return result.toDataStreamResponse({
-      getErrorMessage(error) {
-        if (error instanceof Error) {
-          const msg = error.message;
-          if (msg.includes("429") || msg.toLowerCase().includes("quota") || msg.toLowerCase().includes("rate limit")) {
-            return `RATE_LIMIT:${resolvedModelId}:Rate limit reached for ${resolvedModelId}. Switch to a different model or wait a moment.`;
-          }
-          if (msg.includes("API_KEY_INVALID") || msg.includes("invalid api key") || msg.includes("API key not valid")) {
-            return "Invalid Gemini API key. Check your GOOGLE_GENERATIVE_AI_API_KEY environment variable.";
-          }
-          return msg;
-        }
-        return "An unexpected error occurred. Please try again.";
-      },
-    });
+    return result.toDataStreamResponse();
   } catch (error) {
     console.error("Chat API error:", error);
-    const errorMessage = error instanceof Error ? error.message : "Internal server error";
+    const msg = error instanceof Error ? error.message : "Internal server error";
     const isRateLimit =
-      errorMessage.toLowerCase().includes("rate limit") ||
-      errorMessage.toLowerCase().includes("quota") ||
-      errorMessage.includes("429");
+      msg.includes("429") ||
+      msg.toLowerCase().includes("rate limit") ||
+      msg.toLowerCase().includes("quota") ||
+      msg.toLowerCase().includes("resource_exhausted");
+
+    if (isRateLimit) {
+      return new Response(
+        JSON.stringify({ error: `RATE_LIMITED`, modelId: resolvedModelId }),
+        { status: 429, headers: { "Content-Type": "application/json" } }
+      );
+    }
 
     return new Response(
-      JSON.stringify({ error: isRateLimit ? "Rate limit reached." : errorMessage }),
-      { status: isRateLimit ? 429 : 500, headers: { "Content-Type": "application/json" } }
+      JSON.stringify({ error: msg }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
 }
